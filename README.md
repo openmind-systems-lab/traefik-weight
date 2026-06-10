@@ -272,9 +272,9 @@ http://traefik.localhost:8081/dashboard/ *(Note: The trailing slash is required!
 
 Go to **HTTP -> Services -> default-weighted-app-service** to see the visual 80/20 breakdown.
 
-![Screen](./img/screen-router.png)
+![Screen](./screen-router.png)
 
-![Screen](./img/screen-service-weight.png)
+![Screen](./screen-service-weight.png)
 
 
 

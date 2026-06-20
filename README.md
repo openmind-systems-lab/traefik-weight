@@ -1,293 +1,236 @@
-# Traefik Weighted Load Balancing on Kubernetes (Local Dev)
+<p align="center">
+  <img src="https://raw.githubusercontent.com/openmind-systems-lab/.github/main/profile/logo.png" width="350">
+</p>
 
-This project demonstrates how to set up **Traefik v3** on a local Kubernetes cluster (Docker Desktop) to perform **Weighted Round Robin (80/20 split)** routing between two versions of an application. 
+<h1 align="center">Traefik Weighted Load Balancing</h1>
 
-Perfect for testing Canary deployments or A/B testing locally.
+<p align="center">
+An Open Source Proof of Concept demonstrating weighted traffic routing with Traefik on Kubernetes.
+</p>
 
-```mermaid
-%%{init: {
-  'theme': 'base', 
-  'look': 'handDrawn', 
-  'themeVariables': { 
-    'fontFamily': 'Comic Sans MS, cursive',
-    'primaryColor': '#ffffff',
-    'mainBkg': '#ffffff',
-    'lineColor': '#444444'
-  }
-}}%%
+<p align="center">
 
-%%{init: {'theme': 'neutral'}}%%
-graph LR
-    %% External
-    User((💻 Client))
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Open Source](https://img.shields.io/badge/Open%20Source-Yes-brightgreen)
+![Proof of Concept](https://img.shields.io/badge/Type-Proof%20of%20Concept-orange)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-Ingress%20Controller-blue)
+![Association](https://img.shields.io/badge/OpenMind%20Systems%20Lab-Loi%201901-blue)
 
-    %% Traefik Space
-    subgraph Traefik [Traefik Configuration]
-        direction TB
-        EP[🚪 EntryPoint: 8081]
-        Router{🌐 Router<br>Host: split.localhost}
-        Splitter{⚖️ TraefikService<br>Type: Weighted}
-    end
-
-    %% Kubernetes Space
-    subgraph K8s [Kubernetes Cluster]
-        subgraph V1 [80% Traffic]
-            direction LR
-            Svc1[⚙️ app-v1-service]
-            Pod1([📦 Stable-V1 Pod])
-        end
-        subgraph V2 [20% Traffic]
-            direction LR
-            Svc2[⚙️ app-v2-service]
-            Pod2([📦 Experimental-V2 Pod])
-        end
-    end
-
-    %% Traffic Flow
-    User == "curl http://localhost:8081 -H 'Host: split.localhost'" ===> EP
-    EP --> Router
-    Router -- "Matches Rule" --> Splitter
-    
-    Splitter == "Weight: 80" ===> Svc1
-    Splitter -. "Weight: 20" .-> Svc2
-    
-    Svc1 --> Pod1
-    Svc2 --> Pod2
-
-    %% Custom CSS Styling
-    classDef client fill:#e0f7fa,stroke:#006064,stroke-width:2px,color:#000;
-    classDef traefik fill:#bbdefb,stroke:#0d47a1,stroke-width:2px,color:#000;
-    classDef service fill:#c8e6c9,stroke:#1b5e20,stroke-width:2px,color:#000;
-    classDef stable fill:#dcedc8,stroke:#33691e,stroke-width:2px,color:#000;
-    classDef canary fill:#ffcdd2,stroke:#b71c1c,stroke-width:2px,color:#000;
-
-    class User client;
-    class EP,Router,Splitter traefik;
-    class Svc1,Svc2 service;
-    class Pod1 stable;
-    class Pod2 canary;
-
-```
-
-## 🚀 Prerequisites
-
-- **Docker Desktop** with Kubernetes enabled.
-- **Helm** (Kubernetes Package Manager).
-- **kubectl** CLI installed and configured to point to `docker-desktop`.
+</p>
 
 ---
 
-## 🛠️ 1. Infrastructure Setup (Traefik)
+# 📖 Overview
 
-We install Traefik via Helm. The HTTP port is mapped to **8081** to avoid conflicts with Windows IIS or other default services running on port 80.
+This Proof of Concept demonstrates how **Traefik v3** performs weighted load balancing between two versions of the same application using Kubernetes Custom Resources.
 
-```powershell
-# 1. Add Traefik Repo
+The example routes **80% of the traffic** to a stable version and **20%** to a canary version, making it ideal for canary deployments and A/B testing.
+
+---
+
+# 🏗️ Architecture
+
+![Architecture](media/schema.png)
+
+---
+
+# 🎯 Objective
+
+This Proof of Concept demonstrates how to:
+
+- Deploy Traefik using Helm.
+- Deploy two application versions.
+- Configure weighted traffic routing.
+- Route 80% of requests to the stable version.
+- Route 20% of requests to the canary version.
+- Monitor traffic distribution using Prometheus metrics.
+
+---
+
+# ⚙️ Prerequisites
+
+- Docker Desktop (Kubernetes enabled)
+- kubectl
+- Helm 3
+
+---
+
+# 📦 Install Traefik
+
+Add the Helm repository:
+
+```bash
 helm repo add traefik https://traefik.github.io/charts
 helm repo update
+```
 
-# 2. Install Traefik with Dashboard and Metrics enabled
-helm install traefik traefik/traefik `
-  --create-namespace `
-  --namespace traefik `
-  --set ports.web.exposedPort=8081 `
+Install Traefik:
+
+```bash
+helm install traefik traefik/traefik \
+  --namespace traefik \
+  --create-namespace \
+  --set ports.web.exposedPort=8081 \
   --set "additionalArguments={--metrics.prometheus=true,--metrics.prometheus.entryPoint=web,--api.dashboard=true,--api.insecure=true}"
 ```
 
 ---
 
-## 📦 2. Deploy the Applications
+# 🚀 Deploy the Demo
 
-`apps.yaml`: This creates two deployments and services: **Stable-V1** and **Experimental-V2**.
+Deploy the applications:
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: app-v1
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: v1
-  template:
-    metadata:
-      labels:
-        app: v1
-    spec:
-      containers:
-      - name: whoami
-        image: traefik/whoami
-        args: ["--name=Stable-V1"]
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: app-v1-service
-spec:
-  selector:
-    app: v1
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 80
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: app-v2
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: v2
-  template:
-    metadata:
-      labels:
-        app: v2
-    spec:
-      containers:
-      - name: whoami
-        image: traefik/whoami
-        args: ["--name=Experimental-V2"]
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: app-v2-service
-spec:
-  selector:
-    app: v2
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 80
-```
-
-Apply the applications:
-```powershell
+```bash
 kubectl apply -f apps.yaml
 ```
 
----
+Deploy the weighted routing:
 
-## ⚖️ 3. Configure the 80/20 Traffic Split
-
-`split-test.yaml`: This uses Traefik's Custom Resource Definitions (`TraefikService` and `IngressRoute`) to route 80% of traffic to V1 and 20% to V2.
-
-```yaml
-apiVersion: traefik.io/v1alpha1
-kind: TraefikService
-metadata:
-  name: weighted-app-service
-  namespace: default
-spec:
-  weighted:
-    services:
-      - name: app-v1-service
-        port: 80
-        weight: 80
-      - name: app-v2-service
-        port: 80
-        weight: 20
----
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: split-test-route
-  namespace: default
-spec:
-  entryPoints:
-    - web
-  routes:
-  - match: Host(`split.localhost`)
-    kind: Rule
-    services:
-    - name: weighted-app-service
-      kind: TraefikService
-```
-
-Apply the routing rules:
-```powershell
+```bash
 kubectl apply -f split-test.yaml
 ```
 
----
+Expose the Traefik Dashboard:
 
-## 📊 4. Expose the Traefik Dashboard
-
-`traefik-dashboard.yaml`: To view the visual representation of your routing and services
-
-```yaml
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: traefik-dashboard
-  namespace: traefik
-spec:
-  entryPoints:
-    - web
-  routes:
-  - match: Host(`traefik.localhost`)
-    kind: Rule
-    services:
-    - name: api@internal
-      kind: TraefikService
-```
-
-Apply the dashboard route:
-```powershell
+```bash
 kubectl apply -f traefik-dashboard.yaml
 ```
 
 ---
 
-## 🧪 5. Testing and Verification
+# 🔍 Verification
 
-### 1. Test the Routing Split
-Run a loop in PowerShell to hit the endpoint 10 times and watch the 80/20 distribution in action:
-```powershell
-1..20 | ForEach-Object { curl.exe -s -H "Host: split.localhost" http://localhost:8081 }
+Verify that Traefik is running:
+
+```bash
+kubectl get pods -n traefik
 ```
 
-### 2. Check Raw Prometheus Metrics
-Verify the exact hit count processed by Traefik:
-```powershell
-curl.exe -s http://localhost:8081/metrics | Select-String "traefik_service_requests_total"
+Verify that both applications are running:
+
+```bash
+kubectl get pods
 ```
 
-```console
-# HELP traefik_service_requests_total How many HTTP requests processed on a service, partitioned by status code,
-protocol, and method.
-# TYPE traefik_service_requests_total counter
-traefik_service_requests_total{code="200",method="GET",protocol="http",service="default-app-v1-service-80@kubernetescrd
-"} 16
-traefik_service_requests_total{code="200",method="GET",protocol="http",service="default-app-v2-service-80@kubernetescrd
-"} 4
+Verify the Traefik resources:
+
+```bash
+kubectl get ingressroute
+kubectl get traefikservice
 ```
-
-### 3. Access the Dashboard
-Open your browser and navigate to:
-http://traefik.localhost:8081/dashboard/ *(Note: The trailing slash is required!)*
-
-Go to **HTTP -> Services -> default-weighted-app-service** to see the visual 80/20 breakdown.
-
-![Screen](./screen-router.png)
-
-![Screen](./screen-service-weight.png)
-
-
 
 ---
 
-## 🧹 6. Cleanup
+# 🧪 Testing
 
-To remove all resources created by this lab:
+Send multiple requests:
 
-```powershell
+```bash
+for i in $(seq 1 20); do
+  curl -s \
+    -H "Host: split.localhost" \
+    http://localhost:8081
+done
+```
+
+Expected behaviour:
+
+- Approximately 80% of responses come from **Stable-V1**
+- Approximately 20% of responses come from **Experimental-V2**
+
+Display Traefik metrics:
+
+```bash
+curl http://localhost:8081/metrics | grep traefik_service_requests_total
+```
+
+Expected output:
+
+```text
+default-app-v1-service-80    16
+default-app-v2-service-80     4
+```
+
+Open the Traefik dashboard:
+
+```
+http://traefik.localhost:8081/dashboard/
+```
+
+Navigate to:
+
+```
+HTTP → Services
+```
+
+You should observe the weighted service configuration.
+
+---
+
+# 📚 What You Will Learn
+
+After completing this Proof of Concept, you will understand how to:
+
+- Install Traefik using Helm.
+- Deploy Kubernetes applications behind Traefik.
+- Configure weighted routing using Traefik CRDs.
+- Perform canary deployments.
+- Implement A/B testing.
+- Inspect Traefik metrics.
+- Visualize routing through the Traefik Dashboard.
+
+---
+
+# 🧹 Cleanup
+
+Delete the dashboard route:
+
+```bash
 kubectl delete -f traefik-dashboard.yaml
+```
+
+Delete the weighted routing:
+
+```bash
 kubectl delete -f split-test.yaml
+```
+
+Delete the applications:
+
+```bash
 kubectl delete -f apps.yaml
+```
+
+Uninstall Traefik:
+
+```bash
 helm uninstall traefik -n traefik
+
 kubectl delete namespace traefik
 ```
+
+---
+
+# 📚 References
+
+- https://doc.traefik.io/traefik/
+- https://doc.traefik.io/traefik/routing/providers/kubernetes-crd/
+- https://doc.traefik.io/traefik/routing/services/
+
+---
+
+# 🏛 About OpenMind Systems Lab
+
+OpenMind Systems Lab is an independent French non-profit association dedicated to research, experimental development and technical benchmarking in Cloud Native technologies.
+
+Our mission is to produce practical, reproducible and educational Open Source Proofs of Concept covering Kubernetes, Platform Engineering, Distributed Messaging, Infrastructure Security and Artificial Intelligence.
+
+GitHub Organization:
+
+https://github.com/openmind-systems-lab
+
+---
+
+<p align="center">
+Made with ❤️ by OpenMind Systems Lab
+</p>

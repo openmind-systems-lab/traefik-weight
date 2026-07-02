@@ -12,8 +12,9 @@ An Open Source Proof of Concept demonstrating weighted traffic routing with Trae
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Open Source](https://img.shields.io/badge/Open%20Source-Yes-brightgreen)
-![Proof of Concept](https://img.shields.io/badge/Type-Proof%20of%20Concept-orange)
-![Kubernetes](https://img.shields.io/badge/Kubernetes-Ingress%20Controller-blue)
+![Status](https://img.shields.io/badge/Status-Lab%20%2F%20PoC-orange)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-Supported-blue)
+![Traefik](https://img.shields.io/badge/Traefik-Yes-purple)
 ![Association](https://img.shields.io/badge/OpenMind%20Systems%20Lab-Loi%201901-blue)
 
 </p>
